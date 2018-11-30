@@ -64,6 +64,9 @@ export default class Painter {
       case 'qrcode':
         this._drawQRCode(view);
         break;
+      case 'line':
+        this._drawAbsLine(view);
+        break;
       default:
         break;
     }
@@ -143,36 +146,42 @@ export default class Painter {
     let height;
     let extra;
     switch (view.type) {
-      case 'text': {
-        const fontWeight = view.css.fontWeight === 'bold' ? 'bold' : 'normal';
-        view.css.fontSize = view.css.fontSize ? view.css.fontSize : '20rpx';
-        this.ctx.font = `normal ${fontWeight} ${view.css.fontSize.toPx()}px ${view.css.fontFamily ? view.css.fontFamily : 'sans-serif'}`;
-        // this.ctx.setFontSize(view.css.fontSize.toPx());
-        const textLength = this.ctx.measureText(view.text).width;
-        width = view.css.width ? view.css.width.toPx() : textLength;
-        // 计算行数
-        const calLines = Math.ceil(textLength / width);
-        const lines = view.css.maxLines < calLines ? view.css.maxLines : calLines;
-        const lineHeight = view.css.lineHeight ? view.css.lineHeight.toPx() : view.css.fontSize.toPx();
-        height = lineHeight * lines;
-        extra = { lines: lines, lineHeight: lineHeight };
-        break;
-      }
-      case 'image': {
-        // image 如果未设置长宽，则使用图片本身的长宽
-        const ratio = getApp().systemInfo.pixelRatio ? getApp().systemInfo.pixelRatio : 2;
-        width = view.css && view.css.width ? view.css.width.toPx() : Math.round(view.sWidth / ratio);
-        height = view.css && view.css.height ? view.css.height.toPx() : Math.round(view.sHeight / ratio);
-        break;
-      }
-      default: {
-        if (!(view.css.width && view.css.height)) {
-          console.error('You should set width and height');
-          return;
+      case 'text':
+        {
+          const fontWeight = view.css.fontWeight === 'bold' ? 'bold' : 'normal';
+          view.css.fontSize = view.css.fontSize ? view.css.fontSize : '20rpx';
+          this.ctx.font = `normal ${fontWeight} ${view.css.fontSize.toPx()}px ${view.css.fontFamily ? view.css.fontFamily : 'sans-serif'}`;
+          // this.ctx.setFontSize(view.css.fontSize.toPx());
+          const textLength = this.ctx.measureText(view.text).width;
+          width = view.css.width ? view.css.width.toPx() : textLength;
+          // 计算行数
+          const calLines = Math.ceil(textLength / width);
+          const lines = view.css.maxLines < calLines ? view.css.maxLines : calLines;
+          const lineHeight = view.css.lineHeight ? view.css.lineHeight.toPx() : view.css.fontSize.toPx();
+          height = lineHeight * lines;
+          extra = {
+            lines: lines,
+            lineHeight: lineHeight
+          };
+          break;
         }
-        width = view.css.width.toPx();
-        height = view.css.height.toPx();
-      }
+      case 'image':
+        {
+          // image 如果未设置长宽，则使用图片本身的长宽
+          const ratio = getApp().systemInfo.pixelRatio ? getApp().systemInfo.pixelRatio : 2;
+          width = view.css && view.css.width ? view.css.width.toPx() : Math.round(view.sWidth / ratio);
+          height = view.css && view.css.height ? view.css.height.toPx() : Math.round(view.sHeight / ratio);
+          break;
+        }
+      default:
+        {
+          if (!(view.css.width && view.css.height)) {
+            console.error('You should set width and height');
+            return;
+          }
+          width = view.css.width.toPx();
+          height = view.css.height.toPx();
+        }
     }
     const x = view.css && view.css.right ? this.style.width - view.css.right.toPx(true) : (view.css && view.css.left ? view.css.left.toPx(true) : 0);
     const y = view.css && view.css.bottom ? this.style.height - height - view.css.bottom.toPx(true) : (view.css && view.css.top ? view.css.top.toPx(true) : 0);
@@ -182,7 +191,7 @@ export default class Painter {
     const align = view.css && view.css.align ? view.css.align : (view.css && view.css.right ? 'right' : 'left');
     switch (align) {
       case 'center':
-        this.ctx.translate(x, y + height / 2);
+        this.ctx.translate(width / 2, y + height / 2);
         break;
       case 'right':
         this.ctx.translate(x - width / 2, y + height / 2);
@@ -214,6 +223,21 @@ export default class Painter {
     QR.api.draw(view.content, this.ctx, -width / 2, -height / 2, width, height, view.css.background, view.css.color);
     this.ctx.restore();
     this._doBorder(view, width, height);
+  }
+
+  _drawAbsLine(view) {
+    this.ctx.save();
+    const {
+      width,
+      height,
+    } = this._preProcess(view);
+    view.css.lineStyle === 'dashed' && this.ctx.setLineDash([4, 2]);
+    this.ctx.beginPath();
+    this.ctx.setStrokeStyle(view.css.color);
+    this.ctx.moveTo(-(width / 2), -(height / 2));
+    this.ctx.lineTo(width / 2, height / 2);
+    this.ctx.stroke();
+    this.ctx.restore();
   }
 
   _drawAbsImage(view) {
@@ -263,7 +287,10 @@ export default class Painter {
       extra,
     } = this._preProcess(view);
     this.ctx.setFillStyle(view.css.color || 'black');
-    const { lines, lineHeight } = extra;
+    const {
+      lines,
+      lineHeight
+    } = extra;
     const preLineLength = Math.round(view.text.length / lines);
     let start = 0;
     let alreadyCount = 0;
@@ -348,8 +375,47 @@ export default class Painter {
       width,
       height,
     } = this._preProcess(view);
-    this.ctx.setFillStyle(view.css.color);
-    this.ctx.fillRect(-(width / 2), -(height / 2), width, height);
+
+    //isLinearGradient 如果是渐变色,来处理成渐变色,反之就不是渐变
+    if (view.css.isLinearGradient) {
+      let grd;
+
+      //处理八个方向的渐变色数据
+      switch (view.css.linearDirection || 'toRight') {
+        case 'toTop':
+          grd = this.ctx.createLinearGradient(-(width / 2), height, -(width / 2), -(height / 2));
+          break;
+        case 'toBottom':
+          grd = this.ctx.createLinearGradient(-(width / 2), -(height / 2), -(width / 2), height);
+          break;
+        case 'toLeft':
+          grd = this.ctx.createLinearGradient(width, height, -(width / 2), height);
+          break;
+        case 'toRight':
+          grd = this.ctx.createLinearGradient(-(width / 2), height, width, height);
+          break;
+        case 'toTopLeft':
+          grd = this.ctx.createLinearGradient(width, height, -(width / 2), -(height / 2));
+        case 'toTopRight':
+          grd = this.ctx.createLinearGradient(-(width / 2), height, width, -(height / 2));
+          break;
+        case 'toBottomLeft':
+          grd = this.ctx.createLinearGradient(width, -(height / 2), -(width / 2), height);
+          break;
+        case 'toBottomRight':
+          grd = this.ctx.createLinearGradient(-(width / 2), -(height / 2), width, height);
+          break;
+      }
+      //把传递过来的颜色数据保存起来
+      view.css.color.forEach(color => {
+        grd.addColorStop(color.index, color.value);
+      })
+      this.ctx.setFillStyle(grd);
+      this.ctx.fillRect(-(width / 2), -(height / 2), width, height);
+    } else {
+      this.ctx.setFillStyle(view.css.color);
+      this.ctx.fillRect(-(width / 2), -(height / 2), width, height);
+    }
     this.ctx.restore();
     this._doBorder(view, width, height);
   }
