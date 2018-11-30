@@ -378,34 +378,14 @@ export default class Painter {
 
     //isLinearGradient 如果是渐变色,来处理成渐变色,反之就不是渐变
     if (view.css.isLinearGradient) {
-      let grd;
-
-      //处理八个方向的渐变色数据
-      switch (view.css.linearDirection || 'toRight') {
-        case 'toTop':
-          grd = this.ctx.createLinearGradient(-(width / 2), height, -(width / 2), -(height / 2));
-          break;
-        case 'toBottom':
-          grd = this.ctx.createLinearGradient(-(width / 2), -(height / 2), -(width / 2), height);
-          break;
-        case 'toLeft':
-          grd = this.ctx.createLinearGradient(width, height, -(width / 2), height);
-          break;
-        case 'toRight':
-          grd = this.ctx.createLinearGradient(-(width / 2), height, width, height);
-          break;
-        case 'toTopLeft':
-          grd = this.ctx.createLinearGradient(width, height, -(width / 2), -(height / 2));
-        case 'toTopRight':
-          grd = this.ctx.createLinearGradient(-(width / 2), height, width, -(height / 2));
-          break;
-        case 'toBottomLeft':
-          grd = this.ctx.createLinearGradient(width, -(height / 2), -(width / 2), height);
-          break;
-        case 'toBottomRight':
-          grd = this.ctx.createLinearGradient(-(width / 2), -(height / 2), width, height);
-          break;
-      }
+      //矩形左上角坐标为X:width*-0.5, Y:height*-0.5, 右下角坐标为:X:width,Y:height ,  以此类推
+      const lineGradDirection = view.css.lineGradDirection || {
+        startX: -0.5,  //起始的X轴坐标,  
+        startY: 1, //起始的Y轴坐标
+        endX: 1, //结束的X轴坐标
+        endY: 1 //结束的Y轴坐标
+      };
+      let grd = this.ctx.createLinearGradient(width * lineGradDirection.startX, height * lineGradDirection.startY, width * lineGradDirection.endX, height * lineGradDirection.endY);;
       //把传递过来的颜色数据保存起来
       view.css.color.forEach(color => {
         grd.addColorStop(color.index, color.value);
